@@ -237,6 +237,29 @@ const server = http.createServer((req, res) => {
 
         // Strip /api prefix if present
         const cleanUrl = url.replace('/api/', '/').replace('/api', '/');
+
+        // ========== Demo User Accounts (1 user = 1 role) ==========
+        const DEMO_USERS = {
+            '1234567890001': { UserId: 1, RoleId: 76, RoleCode: 'ROOT', FirstNameTH: 'สมชาย', LastNameTH: 'ดีเด่น', Rank: 'พ.ต.ท.', RoleName: 'แอดมิน ตร.' },
+            '1234567890002': { UserId: 2, RoleId: 101, RoleCode: 'OFFICER', FirstNameTH: 'วิชัย', LastNameTH: 'สุขสวัสดิ์', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสอบสวน' },
+            '1234567890003': { UserId: 3, RoleId: 102, RoleCode: 'OFFICER_ANALYST', FirstNameTH: 'ธนพล', LastNameTH: 'เจริญกิจ', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสืบสวน' },
+            '1234567890004': { UserId: 4, RoleId: 103, RoleCode: 'MNG_BK', FirstNameTH: 'ประเสริฐ', LastNameTH: 'ศรีสุข', Rank: 'พ.ต.อ.', RoleName: 'ผู้บังคับบัญชา' },
+            '1234567890005': { UserId: 5, RoleId: 104, RoleCode: 'EXECUTIVE', FirstNameTH: 'สุรศักดิ์', LastNameTH: 'ชัยวัฒน์', Rank: 'พล.ต.ท.', RoleName: 'ผู้บริหาร' },
+            '1234567890006': { UserId: 6, RoleId: 105, RoleCode: 'ADMIN_ACSC', FirstNameTH: 'อรุณ', LastNameTH: 'แสงทอง', Rank: 'พ.ต.ท.', RoleName: 'แอดมิน ACSC' },
+            '1234567890007': { UserId: 7, RoleId: 106, RoleCode: 'ROOTTRAIN', FirstNameTH: 'มนัส', LastNameTH: 'พงษ์เจริญ', Rank: 'ร.ต.ท.', RoleName: 'ดูข้อมูลได้อย่างเดียว' },
+            '1234567890008': { UserId: 8, RoleId: 107, RoleCode: 'INVEST_EXEC', FirstNameTH: 'กิตติ', LastNameTH: 'วรรณภา', Rank: 'พ.ต.อ.', RoleName: 'สืบบริหาร' },
+            '1234567890009': { UserId: 9, RoleId: 108, RoleCode: 'ADMIN_BCH', FirstNameTH: 'นิรันดร์', LastNameTH: 'อมรเทพ', Rank: 'พ.ต.ท.', RoleName: 'Admin บช.' },
+            '1234567890010': { UserId: 10, RoleId: 109, RoleCode: 'MNG_CCIB', FirstNameTH: 'วีระ', LastNameTH: 'พัฒนกุล', Rank: 'พ.ต.อ.', RoleName: 'Admin บช.สอท.' },
+            '1234567890011': { UserId: 11, RoleId: 110, RoleCode: 'OFFICER_ACSC', FirstNameTH: 'ปิยะ', LastNameTH: 'สมบูรณ์', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสอบสวน ACSC' },
+            '1234567890012': { UserId: 12, RoleId: 111, RoleCode: 'MNG_REGION', FirstNameTH: 'อำนาจ', LastNameTH: 'รุ่งเรือง', Rank: 'พ.ต.อ.', RoleName: 'ADMIN บก./ภ.จว.' },
+            '1234567890013': { UserId: 13, RoleId: 112, RoleCode: 'OFFICER1441', FirstNameTH: 'พิชัย', LastNameTH: 'ทองดี', Rank: 'ด.ต.', RoleName: 'เจ้าหน้าที่1441' },
+            '1234567890014': { UserId: 14, RoleId: 113, RoleCode: 'MNG_KK', FirstNameTH: 'สุทธิ', LastNameTH: 'กล้าหาญ', Rank: 'พ.ต.ท.', RoleName: 'Admin สน./สภ.' },
+            '1234567890015': { UserId: 15, RoleId: 114, RoleCode: 'CYBER_TRAINING', FirstNameTH: 'ณัฐพล', LastNameTH: 'ไซเบอร์', Rank: 'ร.ต.อ.', RoleName: 'ครูไซเบอร์' },
+        };
+
+        // Track current logged-in user (by last auth request)
+        let currentUser = DEMO_USERS['1234567890001']; // default: admin
+
         // ========== Auth / Login ==========
         if (url.includes('user/auth') || url.includes('user/challenge') || url.includes('user/renew') || url.includes('user/refresh') || url.includes('user/get-otp')) {
             if (url.includes('challenge')) {
@@ -244,13 +267,19 @@ const server = http.createServer((req, res) => {
             } else if (url.includes('get-otp')) {
                 res.end(JSON.stringify({ IsSuccess: true, Message: 'OTP sent (mock)' }));
             } else {
-                // Return mock JWT token — payload must match what jwtHelper.decodeToken expects
+                // Detect username from body
+                const params = body ? JSON.parse(body) : {};
+                const username = params.Username || params.username || params.personalId || '';
+                currentUser = DEMO_USERS[username] || DEMO_USERS['1234567890001'];
+                console.log(`[Auth] Login: ${username} → ${currentUser.Rank}${currentUser.FirstNameTH} ${currentUser.LastNameTH} (${currentUser.RoleName})`);
+
                 const header = Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');
                 const payload = Buffer.from(JSON.stringify({
-                    UserId: 1, UserType: 2, PersonalId: 1,
+                    UserId: currentUser.UserId, UserType: 2, PersonalId: currentUser.UserId,
                     OrganizeId: 1, OrganizeLevel: 1, OrganizeRootId: 1,
                     LastAccessDateTime: new Date().toISOString(),
-                    FullName: 'Admin Demo', FirstNameTH: 'ผู้ดูแล', LastNameTH: 'ระบบ',
+                    FullName: `${currentUser.Rank}${currentUser.FirstNameTH} ${currentUser.LastNameTH}`,
+                    FirstNameTH: currentUser.FirstNameTH, LastNameTH: currentUser.LastNameTH,
                     exp: Math.floor(Date.now() / 1000) + 86400,
                     iat: Math.floor(Date.now() / 1000)
                 })).toString('base64url');
@@ -280,7 +309,9 @@ const server = http.createServer((req, res) => {
         ];
 
         if (url.includes('/role') && !url.includes('register')) {
-            res.end(success(MOCK_ROLES));
+            // Return only the role that matches the current user
+            const userRole = MOCK_ROLES.find(r => r.RoleId === currentUser.RoleId);
+            res.end(success(userRole ? [{ ...userRole, IsDefault: true }] : [MOCK_ROLES[0]]));
             return;
         }
 
