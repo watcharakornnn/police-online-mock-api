@@ -240,6 +240,7 @@ const server = http.createServer((req, res) => {
 
         // ========== Demo User Accounts (1 user = 1 role) ==========
         const DEMO_USERS = {
+            '3211234567890': { UserId: 0, RoleId: 76, RoleCode: 'ROOT', FirstNameTH: 'วัชรากร', LastNameTH: 'ทดสอบ', Rank: 'พ.ต.ท.', RoleName: 'แอดมิน ตร.', password: '67890' },
             '1234567890001': { UserId: 1, RoleId: 76, RoleCode: 'ROOT', FirstNameTH: 'สมชาย', LastNameTH: 'ดีเด่น', Rank: 'พ.ต.ท.', RoleName: 'แอดมิน ตร.' },
             '1234567890002': { UserId: 2, RoleId: 101, RoleCode: 'OFFICER', FirstNameTH: 'วิชัย', LastNameTH: 'สุขสวัสดิ์', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสอบสวน' },
             '1234567890003': { UserId: 3, RoleId: 102, RoleCode: 'OFFICER_ANALYST', FirstNameTH: 'ธนพล', LastNameTH: 'เจริญกิจ', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสืบสวน' },
@@ -270,7 +271,16 @@ const server = http.createServer((req, res) => {
                 // Detect username from body
                 const params = body ? JSON.parse(body) : {};
                 const username = params.Username || params.username || params.personalId || '';
-                currentUser = DEMO_USERS[username] || DEMO_USERS['1234567890001'];
+                const password = params.Password || params.password || '';
+                const matchedUser = DEMO_USERS[username];
+
+                // Check password if user has one set
+                if (matchedUser && matchedUser.password && matchedUser.password !== password) {
+                    res.end(JSON.stringify({ IsSuccess: false, Value: null, Message: 'รหัสผ่านไม่ถูกต้อง' }));
+                    return;
+                }
+
+                currentUser = matchedUser || DEMO_USERS['1234567890001'];
                 console.log(`[Auth] Login: ${username} → ${currentUser.Rank}${currentUser.FirstNameTH} ${currentUser.LastNameTH} (${currentUser.RoleName})`);
 
                 const header = Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');
@@ -309,9 +319,15 @@ const server = http.createServer((req, res) => {
         ];
 
         if (url.includes('/role') && !url.includes('register')) {
-            // Return only the role that matches the current user
-            const userRole = MOCK_ROLES.find(r => r.RoleId === currentUser.RoleId);
-            res.end(success(userRole ? [{ ...userRole, IsDefault: true }] : [MOCK_ROLES[0]]));
+            // Admin ตร. (ROOT) สามารถเลือก role อื่นได้ทั้งหมด
+            if (currentUser.RoleCode === 'ROOT') {
+                const rolesWithDefault = MOCK_ROLES.map(r => ({ ...r, IsDefault: r.RoleId === currentUser.RoleId }));
+                res.end(success(rolesWithDefault));
+            } else {
+                // Return only the role that matches the current user
+                const userRole = MOCK_ROLES.find(r => r.RoleId === currentUser.RoleId);
+                res.end(success(userRole ? [{ ...userRole, IsDefault: true }] : [MOCK_ROLES[0]]));
+            }
             return;
         }
 
@@ -755,14 +771,19 @@ const server = http.createServer((req, res) => {
                 const offset = params.Offset || 0;
                 const length = params.Length || 20;
 
-                let filtered = MOCK_CASE_DATA;
-                if (cposText) {
-                    filtered = filtered.filter(c =>
-                        (c.TrackingCode || '').toUpperCase().includes(cposText) ||
-                        (c.Ext5 || '').toUpperCase().includes(cposText) ||
-                        (c.OptionalData || '').toUpperCase().includes(cposText)
-                    );
+                // ถ้าไม่มีคำค้น → return ว่าง (ไม่ return ทั้งหมด)
+                if (!cposText) {
+                    res.end(success({ Data: [], TotalCount: 0 }));
+                    return;
                 }
+
+                let filtered = MOCK_CASE_DATA.filter(c =>
+                    (c.TrackingCode || '').toUpperCase().includes(cposText) ||
+                    (c.Ext5 || '').toUpperCase().includes(cposText) ||
+                    (c.OptionalData || '').toUpperCase().includes(cposText) ||
+                    (c.FreezeActBankTrackNo || '').toUpperCase().includes(cposText) ||
+                    (c.CaseTypeName || '').toUpperCase().includes(cposText)
+                );
 
                 const results = filtered.map(c => {
                     const sameType = MOCK_CASE_DATA.filter(x => x.CaseTypeName === c.CaseTypeName && x.InstId !== c.InstId);
@@ -788,6 +809,11 @@ const server = http.createServer((req, res) => {
             if (url.includes('detail')) {
                 const urlObj = new URL(req.url, `http://localhost:${PORT}`);
                 const entityIdentity = urlObj.searchParams.get('entityIdentity') || '';
+
+                if (!entityIdentity) {
+                    res.end(success([]));
+                    return;
+                }
 
                 const linkedCases = MOCK_CASE_DATA.filter(c =>
                     (c.Ext5 || '').includes(entityIdentity) ||
