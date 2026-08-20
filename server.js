@@ -10,7 +10,7 @@ const path = require('path');
 const { execFile, spawn } = require('child_process');
 
 // Load mock data from the TS file (parse the JSON array)
-const mockDataPath = path.join(__dirname, 'data/mock-case-data.ts');
+const mockDataPath = path.join(__dirname, 'src/app/services/mock-case-data.ts');
 const mockDataContent = fs.readFileSync(mockDataPath, 'utf-8');
 // Extract the JSON array from the TS file
 const jsonMatch = mockDataContent.match(/\[[\s\S]*\]/);
@@ -18,101 +18,47 @@ const MOCK_CASE_DATA = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
 
 console.log(`[Mock Server] Loaded ${MOCK_CASE_DATA.length} cases from mock-case-data.ts`);
 
-// OpenAI API direct call (uses OPENAI_API_KEY env var) — no CLI needed
-const https = require('https');
-function callOpenAiDirect(promptText, timeoutMs = 25000) {
-    return new Promise((resolve, reject) => {
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-            reject(new Error('No OPENAI_API_KEY'));
-            return;
-        }
-        const body = JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: promptText }],
-            max_tokens: 1024,
-            temperature: 0.7
-        });
-        const options = {
-            hostname: 'api.openai.com',
-            port: 443,
-            path: '/v1/chat/completions',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Length': Buffer.byteLength(body)
-            },
-            timeout: timeoutMs
-        };
-        const req = https.request(options, (res) => {
-            let data = '';
-            res.on('data', chunk => { data += chunk; });
-            res.on('end', () => {
-                try {
-                    const json = JSON.parse(data);
-                    if (json.error) {
-                        reject(new Error(json.error.message || 'OpenAI API error'));
-                        return;
-                    }
-                    const answer = (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content || '').trim();
-                    if (!answer) { reject(new Error('Empty OpenAI response')); return; }
-                    resolve(answer);
-                } catch (e) {
-                    reject(new Error('Failed to parse OpenAI response'));
-                }
-            });
-        });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error(`OpenAI timeout after ${timeoutMs}ms`)); });
-        req.write(body);
-        req.end();
-    });
-}
-
 // Codex CLI helper — calls `codex exec` with timeout and fallback
 function callCodex(promptText, timeoutMs = 22000) {
-    // Try OpenAI API direct first (works on Render), then CLI as fallback
-    return callOpenAiDirect(promptText, timeoutMs).catch((apiErr) => {
-        console.warn('[Codex] OpenAI API failed, trying CLI:', apiErr.message);
-        return new Promise((resolve, reject) => {
-            try {
-                let stdout = '';
-                let stderr = '';
-                const child = spawn('codex', ['exec', '-s', 'read-only', promptText], {
-                    env: { ...process.env },
-                    stdio: ['pipe', 'pipe', 'pipe']
-                });
+    return new Promise((resolve, reject) => {
+        try {
+            let stdout = '';
+            let stderr = '';
+            const child = spawn('codex', ['exec', '-s', 'read-only', promptText], {
+                env: { ...process.env },
+                stdio: ['pipe', 'pipe', 'pipe']
+            });
 
-                child.stdin.write('\n');
-                child.stdin.end();
+            // Close stdin immediately to prevent "Reading additional input from stdin..." hang
+            child.stdin.write('\n');
+            child.stdin.end();
 
-                child.stdout.on('data', (data) => { stdout += data.toString(); });
-                child.stderr.on('data', (data) => { stderr += data.toString(); });
+            child.stdout.on('data', (data) => { stdout += data.toString(); });
+            child.stderr.on('data', (data) => { stderr += data.toString(); });
 
-                const timer = setTimeout(() => {
-                    child.kill('SIGTERM');
-                    reject(new Error(`codex timeout after ${timeoutMs}ms`));
-                }, timeoutMs);
+            // Timeout
+            const timer = setTimeout(() => {
+                child.kill('SIGTERM');
+                reject(new Error(`codex timeout after ${timeoutMs}ms`));
+            }, timeoutMs);
 
-                child.on('close', (code) => {
-                    clearTimeout(timer);
-                    const answer = stdout.trim();
-                    if (code !== 0 || !answer) {
-                        reject(new Error(`codex exit ${code}: ${stderr.substring(0, 200) || 'no output'}`));
-                        return;
-                    }
-                    resolve(answer);
-                });
+            child.on('close', (code) => {
+                clearTimeout(timer);
+                const answer = stdout.trim();
+                if (code !== 0 || !answer) {
+                    reject(new Error(`codex exit ${code}: ${stderr.substring(0, 200) || 'no output'}`));
+                    return;
+                }
+                resolve(answer);
+            });
 
-                child.on('error', (err) => {
-                    clearTimeout(timer);
-                    reject(err);
-                });
-            } catch (e) {
-                reject(e);
-            }
-        });
+            child.on('error', (err) => {
+                clearTimeout(timer);
+                reject(err);
+            });
+        } catch (e) {
+            reject(e);
+        }
     });
 }
 
@@ -150,7 +96,7 @@ function buildFallbackAnswer(inputText) {
         'แนะนำให้ค้นหาคดีอื่นที่มีรูปแบบเดียวกันผ่าน Network Intelligence';
 }
 
-const PORT = process.env.PORT || 14121;
+const PORT = 14121;
 
 // Helper: wrap response in share-ui format
 function success(data) {
@@ -711,6 +657,36 @@ const server = http.createServer((req, res) => {
         if (url.includes('cmsonlinecaseentity')) {
             const params = body ? JSON.parse(body) : {};
 
+            // CmsOnlineCaseEntity/detail — cases linked to a specific entity (MUST be before /identity check)
+            if (url.includes('detail')) {
+                const urlObj = new URL(req.url, `http://localhost:${PORT}`);
+                const entityIdentity = urlObj.searchParams.get('entityIdentity') || '';
+
+                if (!entityIdentity) {
+                    res.end(success([]));
+                    return;
+                }
+
+                const linkedCases = MOCK_CASE_DATA.filter(c =>
+                    (c.Ext5 || '').includes(entityIdentity) ||
+                    (c.OptionalData || '').includes(entityIdentity) ||
+                    (c.FreezeActBankTrackNo || '').includes(entityIdentity)
+                ).map(c => ({
+                    TRACKING_CODE: c.TrackingCode,
+                    ENTITY_TYPE: 'PERSON',
+                    ENTITY_IDENTITY: entityIdentity,
+                    ORG_NAME: c.OrganizeAbbr || '',
+                    INST_ID: c.InstId,
+                    CASE_TYPE_NAME: c.CaseTypeName,
+                    STATUS_NAME: c.StatusName,
+                    DAMAGE_VALUE: c.DamageValue,
+                    CREATE_DATE: c.CreateDate
+                }));
+
+                res.end(success(linkedCases));
+                return;
+            }
+
             // CmsOnlineCaseEntity/identity/count — entity search
             if (url.includes('identity/count') || url.includes('identity')) {
                 const condition = (params.Condition || params.condition || '').toUpperCase();
@@ -805,31 +781,6 @@ const server = http.createServer((req, res) => {
                 return;
             }
 
-            // CmsOnlineCaseEntity/detail — cases linked to a specific entity
-            if (url.includes('detail')) {
-                const urlObj = new URL(req.url, `http://localhost:${PORT}`);
-                const entityIdentity = urlObj.searchParams.get('entityIdentity') || '';
-
-                if (!entityIdentity) {
-                    res.end(success([]));
-                    return;
-                }
-
-                const linkedCases = MOCK_CASE_DATA.filter(c =>
-                    (c.Ext5 || '').includes(entityIdentity) ||
-                    (c.OptionalData || '').includes(entityIdentity) ||
-                    (c.FreezeActBankTrackNo || '').includes(entityIdentity)
-                ).map(c => ({
-                    TRACKING_CODE: c.TrackingCode,
-                    ENTITY_TYPE: 'PERSON',
-                    ENTITY_IDENTITY: entityIdentity,
-                    ORG_NAME: c.OrganizeAbbr || '',
-                    INST_ID: c.InstId
-                }));
-
-                res.end(success(linkedCases));
-                return;
-            }
 
             // Fallback for other cmsonlinecaseentity requests
             res.end(success({ Data: [], TotalCount: 0 }));
