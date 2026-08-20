@@ -10,7 +10,7 @@ const path = require('path');
 const { execFile, spawn } = require('child_process');
 
 // Load mock data from the TS file (parse the JSON array)
-const mockDataPath = path.join(__dirname, 'src/app/services/mock-case-data.ts');
+const mockDataPath = path.join(__dirname, 'data/mock-case-data.ts');
 const mockDataContent = fs.readFileSync(mockDataPath, 'utf-8');
 // Extract the JSON array from the TS file
 const jsonMatch = mockDataContent.match(/\[[\s\S]*\]/);
