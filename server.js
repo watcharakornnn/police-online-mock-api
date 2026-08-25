@@ -10,7 +10,7 @@ const path = require('path');
 const { execFile, spawn } = require('child_process');
 
 // Load mock data from the TS file (parse the JSON array)
-const mockDataPath = path.join(__dirname, 'data/mock-case-data.ts');
+const mockDataPath = path.join(__dirname, 'src/app/services/mock-case-data.ts');
 const mockDataContent = fs.readFileSync(mockDataPath, 'utf-8');
 // Extract the JSON array from the TS file
 const jsonMatch = mockDataContent.match(/\[[\s\S]*\]/);
@@ -64,6 +64,18 @@ function callCodex(promptText, timeoutMs = 22000) {
 
 // Fallback answer builder (tier 2) — parse case data from text
 function buildFallbackAnswer(inputText) {
+    // Complainant-statement (ถาม-ตอบ format) — don't return bullet list
+    if (/ถาม-ตอบ|ผู้ให้การ|คำให้การ/.test(inputText)) {
+        return 'ถาม  ขอทราบรายละเอียดเหตุการณ์ที่เกิดขึ้น\n' +
+            'ตอบ  (กรุณากรอกรายละเอียดด้วยตนเอง — AI ไม่พร้อมใช้งาน กรุณาอ้างอิงข้อมูลจากคดีที่เลือกไว้)\n\n' +
+            'ถาม  มูลค่าความเสียหายเท่าใด\n' +
+            'ตอบ  (กรุณากรอกด้วยตนเอง)\n\n' +
+            'ถาม  มีหลักฐานใดมอบให้พนักงานสอบสวน\n' +
+            'ตอบ  (กรุณากรอกด้วยตนเอง)\n\n' +
+            'ถาม  เคยมีสาเหตุโกรธเคืองกับผู้ใดในคดีนี้หรือไม่\n' +
+            'ตอบ  ไม่เคยมีสาเหตุโกรธเคืองกับผู้ใดมาก่อน';
+    }
+
     const trackingMatch = inputText.match(/เลขติดตาม[:\s]*([A-Za-z0-9]+)/);
     const caseTypeMatch = inputText.match(/ประเภทคดี[:\s]*([^\n\-]+)/);
     const victimMatch = inputText.match(/ผู้เสียหาย[:\s]*([^\n\-]+)/);
