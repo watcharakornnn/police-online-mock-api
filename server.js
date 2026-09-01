@@ -10,7 +10,7 @@ const path = require('path');
 const { execFile, spawn } = require('child_process');
 
 // Load mock data from the TS file (parse the JSON array)
-const mockDataPath = path.join(__dirname, 'src/app/services/mock-case-data.ts');
+const mockDataPath = path.join(__dirname, 'data/mock-case-data.ts');
 const mockDataContent = fs.readFileSync(mockDataPath, 'utf-8');
 // Extract the JSON array from the TS file
 const jsonMatch = mockDataContent.match(/\[[\s\S]*\]/);
@@ -108,6 +108,28 @@ function buildFallbackAnswer(inputText) {
         'แนะนำให้ค้นหาคดีอื่นที่มีรูปแบบเดียวกันผ่าน Network Intelligence';
 }
 
+// ========== Evidence image storage helpers ==========
+const EVIDENCE_IMAGE_DIR = path.join(__dirname, 'local-data', 'evidence-images');
+
+function getEvidenceImagePaths(evidenceId) {
+    if (!/^[a-z0-9_-]{1,100}$/i.test(evidenceId)) {
+        throw new Error('Invalid evidenceId');
+    }
+    const safeId = evidenceId.toLowerCase();
+    return {
+        imagePath: path.join(EVIDENCE_IMAGE_DIR, `${safeId}.bin`),
+        metadataPath: path.join(EVIDENCE_IMAGE_DIR, `${safeId}.json`)
+    };
+}
+
+async function deleteFileIfExists(filePath) {
+    try {
+        await fs.promises.unlink(filePath);
+    } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+    }
+}
+
 const PORT = 14121;
 
 // Helper: wrap response in share-ui format
@@ -190,11 +212,81 @@ const server = http.createServer((req, res) => {
     const url = req.url.toLowerCase();
     let body = '';
     req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    req.on('end', async () => {
         console.log(`[${req.method}] ${req.url}`);
 
         // Strip /api prefix if present
         const cleanUrl = url.replace('/api/', '/').replace('/api', '/');
+
+        // ========== Backend-local storage for original evidence images ==========
+        const evidenceImageMatch = cleanUrl.match(/^\/evidence\/images\/([^/?]+)$/);
+        if (evidenceImageMatch) {
+            const evidenceId = decodeURIComponent(evidenceImageMatch[1]);
+            try {
+                const storagePaths = getEvidenceImagePaths(evidenceId);
+                if (req.method === 'PUT') {
+                    const payload = body ? JSON.parse(body) : {};
+                    const dataUrlMatch = String(payload.imageData || '').match(/^data:([^;]+);base64,(.+)$/s);
+                    if (!dataUrlMatch) {
+                        res.writeHead(400);
+                        res.end(JSON.stringify({ IsSuccess: false, Message: 'imageData must be a base64 data URL' }));
+                        return;
+                    }
+                    const imageBuffer = Buffer.from(dataUrlMatch[2], 'base64');
+                    if (!imageBuffer.length || imageBuffer.length > 10 * 1024 * 1024) {
+                        res.writeHead(400);
+                        res.end(JSON.stringify({ IsSuccess: false, Message: 'Evidence image must be between 1 byte and 10 MB' }));
+                        return;
+                    }
+                    const contentType = dataUrlMatch[1] || payload.contentType || 'application/octet-stream';
+                    await fs.promises.mkdir(EVIDENCE_IMAGE_DIR, { recursive: true });
+                    await Promise.all([
+                        fs.promises.writeFile(storagePaths.imagePath, imageBuffer),
+                        fs.promises.writeFile(storagePaths.metadataPath, JSON.stringify({
+                            evidenceId,
+                            contentType,
+                            size: imageBuffer.length,
+                            savedAt: new Date().toISOString()
+                        }, null, 2), 'utf-8')
+                    ]);
+                    res.end(success({ evidenceId, stored: true }));
+                    return;
+                }
+                if (req.method === 'GET') {
+                    let imageBuffer;
+                    let metadata = {};
+                    try {
+                        imageBuffer = await fs.promises.readFile(storagePaths.imagePath);
+                        metadata = JSON.parse(await fs.promises.readFile(storagePaths.metadataPath, 'utf-8'));
+                    } catch (error) {
+                        if (error.code !== 'ENOENT') throw error;
+                        res.writeHead(404);
+                        res.end(JSON.stringify({ IsSuccess: false, Message: 'Evidence image not found' }));
+                        return;
+                    }
+                    res.setHeader('Content-Type', metadata.contentType || 'application/octet-stream');
+                    res.setHeader('Content-Length', imageBuffer.length);
+                    res.setHeader('Cache-Control', 'private, no-store');
+                    res.end(imageBuffer);
+                    return;
+                }
+                if (req.method === 'DELETE') {
+                    await Promise.all([
+                        deleteFileIfExists(storagePaths.imagePath),
+                        deleteFileIfExists(storagePaths.metadataPath)
+                    ]);
+                    res.end(success({ evidenceId, deleted: true }));
+                    return;
+                }
+                res.writeHead(405);
+                res.end(JSON.stringify({ IsSuccess: false, Message: 'Method not allowed' }));
+            } catch (error) {
+                console.error(`  [EVIDENCE STORAGE ERROR] ${error.message}`);
+                res.writeHead(500);
+                res.end(JSON.stringify({ IsSuccess: false, Message: error.message }));
+            }
+            return;
+        }
 
         // ========== Demo User Accounts (1 user = 1 role) ==========
         const DEMO_USERS = {
