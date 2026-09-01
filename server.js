@@ -715,7 +715,7 @@ const server = http.createServer((req, res) => {
             return;
         }
 
-        if (url.includes('/bpmprocinst/') && !url.includes('log') && !url.includes('attachment') && !url.includes('workflow')) {
+        if (url.includes('/bpmprocinst/') && !url.includes('log') && !url.includes('attachment') && !url.includes('workflow') && !url.includes('dashboard')) {
             const idMatch = req.url.match(/\/(\d+)/);
             const instId = idMatch ? +idMatch[1] : null;
             const mockCase = MOCK_CASE_DATA.find(c => c.InstId === instId) || MOCK_CASE_DATA[0];
@@ -724,6 +724,35 @@ const server = http.createServer((req, res) => {
         }
 
         // ========== BpmWorkflowTask (case list) ==========
+        // ========== Executive Dashboard count (Increment 2) ==========
+        // GET /api/BpmProcInst/dashboard/count/:roles — KPI counts computed live from MOCK_CASE_DATA.
+        // Must be matched BEFORE the generic bpmprocinst/:id handler below.
+        if (url.includes('bpmprocinst/dashboard/count')) {
+            const PROCESSING_CODES = ['FTI', 'FTA', 'IAS', 'PCO', 'SIA', 'WFR'];
+            const now = Date.now();
+            const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+            let caseComplete = 0, caseProcessing = 0, caseNew = 0, caseAppointment = 0, caseReject = 0;
+            for (const c of MOCK_CASE_DATA) {
+                const code = c.StatusCode;
+                if (code === 'COM') caseComplete++;
+                else if (code === 'APH') caseAppointment++;
+                else if (code === 'LON') caseReject++;
+                else if (PROCESSING_CODES.includes(code)) caseProcessing++;
+                // CaseNew = created within last 7 days from server "now" (not hardcoded)
+                const created = new Date(c.CreateDate).getTime();
+                if (!isNaN(created) && now - created <= sevenDaysMs) caseNew++;
+            }
+            res.end(success({
+                CaseAll: MOCK_CASE_DATA.length,
+                CaseComplete: caseComplete,
+                CaseProcessing: caseProcessing,
+                CaseNew: caseNew,
+                CaseAppointment: caseAppointment,
+                CaseReject: caseReject
+            }));
+            return;
+        }
+
         // Matches: BpmProcInst/workflow/task-list, BpmProcInst/workflow/task-list-new-ccib,
         // BpmProcInst/workflow/task-list/officer — all paginated list endpoints that must
         // return { Data, TotalCount } for DevExtreme's remote paging (E4021 otherwise).
