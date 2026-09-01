@@ -108,6 +108,31 @@ function buildFallbackAnswer(inputText) {
         'แนะนำให้ค้นหาคดีอื่นที่มีรูปแบบเดียวกันผ่าน Network Intelligence';
 }
 
+// ========== Document storage (drafted documents) ==========
+const DOCUMENTS_FILE = path.join(__dirname, 'local-data', 'documents.json');
+const TEMPLATE_LABELS = {
+    'account-freeze': 'หนังสืออายัดบัญชี',
+    'summons': 'หมายเรียก',
+    'interrogation': 'บันทึกสอบปากคำ',
+    'investigation-report': 'รายงานสืบสวน',
+    'isp-request': 'ขอข้อมูล ISP',
+    'bank-request': 'ขอข้อมูลธนาคาร',
+    'complainant-statement': 'บันทึกคำให้การ (แบบฟอร์ม สตช.)'
+};
+
+function loadDocuments() {
+    try {
+        return JSON.parse(fs.readFileSync(DOCUMENTS_FILE, 'utf-8'));
+    } catch (error) {
+        return [];
+    }
+}
+
+function saveDocuments(docs) {
+    fs.mkdirSync(path.dirname(DOCUMENTS_FILE), { recursive: true });
+    fs.writeFileSync(DOCUMENTS_FILE, JSON.stringify(docs, null, 2), 'utf-8');
+}
+
 // ========== Evidence image storage helpers ==========
 const EVIDENCE_IMAGE_DIR = path.join(__dirname, 'local-data', 'evidence-images');
 
@@ -282,6 +307,95 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ IsSuccess: false, Message: 'Method not allowed' }));
             } catch (error) {
                 console.error(`  [EVIDENCE STORAGE ERROR] ${error.message}`);
+                res.writeHead(500);
+                res.end(JSON.stringify({ IsSuccess: false, Message: error.message }));
+            }
+            return;
+        }
+
+        // ========== CmsDocument — drafted document storage (persists to disk, shared) ==========
+        if (cleanUrl.startsWith('/cmsdocument')) {
+            try {
+                const params = body ? JSON.parse(body) : {};
+                let docs = loadDocuments();
+                // Path params must come from the ORIGINAL url (cleanUrl is lowercased,
+                // which would corrupt case-sensitive tracking codes / doc ids).
+                const rawPath = req.url.replace(/^\/api\/proxy(?=\/|$)/i, '').replace(/^\/api(?=\/|$)/i, '');
+
+                // GET /cmsdocument/case/{caseId} — documents linked to a case
+                const caseMatch = rawPath.match(/^\/[Cc]ms[Dd]ocument\/case\/([^/?]+)$/);
+                if (caseMatch && req.method === 'GET') {
+                    const key = decodeURIComponent(caseMatch[1]);
+                    const list = docs.filter(d => d.caseId === key || d.caseTrackingCode === key)
+                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    res.end(success(list));
+                    return;
+                }
+
+                // GET /cmsdocument/{id}/download
+                const downloadMatch = rawPath.match(/^\/[Cc]ms[Dd]ocument\/([^/?]+)\/download$/);
+                if (downloadMatch && req.method === 'GET') {
+                    const doc = docs.find(d => d.id === decodeURIComponent(downloadMatch[1]));
+                    if (!doc) { res.writeHead(404); res.end(JSON.stringify({ IsSuccess: false, Message: 'Not found' })); return; }
+                    res.end(success({ id: doc.id, content: doc.content, format: doc.format }));
+                    return;
+                }
+
+                // DELETE /cmsdocument/{id}
+                const idMatch = rawPath.match(/^\/[Cc]ms[Dd]ocument\/([^/?]+)$/);
+                if (idMatch && req.method === 'DELETE') {
+                    docs = docs.filter(d => d.id !== decodeURIComponent(idMatch[1]));
+                    saveDocuments(docs);
+                    res.end(success({ deleted: true }));
+                    return;
+                }
+
+                // POST /cmsdocument/search — list with query + filters + paging
+                if (cleanUrl.startsWith('/cmsdocument/search') && req.method === 'POST') {
+                    const query = String(params.Query || '').trim().toLowerCase();
+                    const filters = params.Filters || {};
+                    const offset = Number(params.Offset) || 0;
+                    const length = Number(params.Length) || 100;
+                    let filtered = [...docs];
+                    if (query) {
+                        filtered = filtered.filter(d =>
+                            [d.title, d.caseTrackingCode, d.createdBy].some(v => String(v || '').toLowerCase().includes(query)));
+                    }
+                    if (filters.templateType) filtered = filtered.filter(d => d.templateType === filters.templateType);
+                    if (filters.caseId) filtered = filtered.filter(d => d.caseId === filters.caseId || d.caseTrackingCode === filters.caseId);
+                    if (filters.createdBy) filtered = filtered.filter(d => String(d.createdBy || '').includes(filters.createdBy));
+                    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    res.end(success({ Data: filtered.slice(offset, offset + length), TotalCount: filtered.length }));
+                    return;
+                }
+
+                // POST /cmsdocument — save a new document
+                if (cleanUrl === '/cmsdocument' && req.method === 'POST') {
+                    const now = new Date().toISOString();
+                    const newDoc = {
+                        id: `DOC-STORE-${Date.now()}`,
+                        title: params.title || 'เอกสาร',
+                        templateType: params.templateType || '',
+                        templateLabel: TEMPLATE_LABELS[params.templateType] || params.templateType || '',
+                        caseId: params.caseId || 'UNKNOWN',
+                        caseTrackingCode: params.caseTrackingCode || '-',
+                        content: params.content || '',
+                        format: params.format || 'pdf',
+                        fileSize: (params.content || '').length * 2,
+                        createdBy: params.createdBy || 'เจ้าหน้าที่',
+                        createdAt: now,
+                        updatedAt: now
+                    };
+                    docs.unshift(newDoc);
+                    saveDocuments(docs);
+                    res.end(success(newDoc));
+                    return;
+                }
+
+                res.writeHead(405);
+                res.end(JSON.stringify({ IsSuccess: false, Message: 'Method not allowed' }));
+            } catch (error) {
+                console.error(`  [DOCUMENT STORAGE ERROR] ${error.message}`);
                 res.writeHead(500);
                 res.end(JSON.stringify({ IsSuccess: false, Message: error.message }));
             }
@@ -631,6 +745,26 @@ const server = http.createServer((req, res) => {
             }
             const page = filtered.slice(offset, offset + length);
             res.end(success({ Data: page, TotalCount: filtered.length }));
+            return;
+        }
+
+        // ========== CmsOnlineCaseInfo/search — case list with text filter + paging ==========
+        if (url.includes('cmsonlinecaseinfo/search')) {
+            const params = body ? JSON.parse(body) : {};
+            let condition = params.Condition;
+            if (condition && typeof condition === 'object') condition = condition.Condition || '';
+            const query = String(condition || '').trim().toLowerCase();
+            const offset = Number(params.Offset) || 0;
+            const length = Number(params.Length) || 100;
+            let matched = MOCK_CASE_DATA;
+            if (query) {
+                matched = MOCK_CASE_DATA.filter(c =>
+                    [c.TrackingCode, c.CaseTypeName, c.CaseTypeGroupName, c.Ext5, c.OrganizeAbbr, c.OptionalData, c.FreezeActBankTrackNo]
+                        .some(v => String(v || '').toLowerCase().includes(query))
+                );
+            }
+            const page = matched.slice(offset, offset + length);
+            res.end(success({ Data: page, TotalCount: matched.length }));
             return;
         }
 
