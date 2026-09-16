@@ -8,6 +8,13 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { execFile, spawn } = require('child_process');
+const crypto = require('crypto');
+
+// Nonce ที่ /user/challenge ตอบกลับ (ต้องตรงกับที่ frontend ใช้ผสม hash)
+const AUTH_NONCE = 'mock-nonce-12345';
+const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+// frontend คำนวณ: finalHash = SHA256( SHA256(plainPassword) + Nonce )
+const expectedFinalHash = (plainPassword) => sha256(sha256(plainPassword) + AUTH_NONCE);
 
 // Load mock data from the TS file (parse the JSON array)
 const mockDataPath = path.join(__dirname, 'data/mock-case-data.ts');
@@ -428,7 +435,7 @@ const server = http.createServer((req, res) => {
         // ========== Auth / Login ==========
         if (url.includes('user/auth') || url.includes('user/challenge') || url.includes('user/renew') || url.includes('user/refresh') || url.includes('user/get-otp')) {
             if (url.includes('challenge')) {
-                res.end(success({ Nonce: 'mock-nonce-12345' }));
+                res.end(success({ Nonce: AUTH_NONCE }));
             } else if (url.includes('get-otp')) {
                 res.end(JSON.stringify({ IsSuccess: true, Message: 'OTP sent (mock)' }));
             } else if (url.includes('user/auth')) {
@@ -447,8 +454,11 @@ const server = http.createServer((req, res) => {
                 }
 
                 const matchedUser = DEMO_USERS[username];
+                // frontend ส่ง finalHash = SHA256(SHA256(plain)+nonce); curl/test อาจส่ง plaintext
+                const passwordOk = matchedUser && matchedUser.password &&
+                    (password === matchedUser.password || password === expectedFinalHash(matchedUser.password));
 
-                if (!matchedUser || matchedUser.password !== password) {
+                if (!matchedUser || !passwordOk) {
                     console.log(`  [AUTH REJECTED] username="${username}" — ไม่อยู่ใน allowlist หรือรหัสผ่านไม่ตรง`);
                     res.writeHead(401);
                     res.end(JSON.stringify({ IsSuccess: false, Value: null, Message: 'Username หรือ Password ไม่ถูกต้อง' }));
