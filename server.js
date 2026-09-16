@@ -436,6 +436,16 @@ const server = http.createServer((req, res) => {
                 const params = body ? JSON.parse(body) : {};
                 const username = String(params.UserName || params.Username || params.username || params.personalId || '').trim();
                 const password = String(params.Password || params.password || '');
+
+                // Input validation / injection hardening (defense-in-depth):
+                // username = ตัวเลข 13 หลัก, password = [0-9A-Za-z] ยาวไม่เกิน 64 — reject payload ที่มีอักขระ injection ก่อน
+                if (!/^[0-9]{13}$/.test(username) || !/^[0-9A-Za-z]{1,64}$/.test(password)) {
+                    console.log(`  [AUTH REJECTED] invalid input format — username="${username}"`);
+                    res.writeHead(401);
+                    res.end(JSON.stringify({ IsSuccess: false, Value: null, Message: 'Username หรือ Password ไม่ถูกต้อง' }));
+                    return;
+                }
+
                 const matchedUser = DEMO_USERS[username];
 
                 if (!matchedUser || matchedUser.password !== password) {
