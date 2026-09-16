@@ -405,21 +405,21 @@ const server = http.createServer((req, res) => {
         // ========== Demo User Accounts (1 user = 1 role) ==========
         const DEMO_USERS = {
             '3211234567890': { UserId: 0, RoleId: 76, RoleCode: 'ROOT', FirstNameTH: 'วัชรากร', LastNameTH: 'ทดสอบ', Rank: 'พ.ต.ท.', RoleName: 'แอดมิน ตร.', password: '67890' },
-            '1234567890001': { UserId: 1, RoleId: 76, RoleCode: 'ROOT', FirstNameTH: 'สมชาย', LastNameTH: 'ดีเด่น', Rank: 'พ.ต.ท.', RoleName: 'แอดมิน ตร.' },
-            '1234567890002': { UserId: 2, RoleId: 101, RoleCode: 'OFFICER', FirstNameTH: 'วิชัย', LastNameTH: 'สุขสวัสดิ์', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสอบสวน' },
-            '1234567890003': { UserId: 3, RoleId: 102, RoleCode: 'OFFICER_ANALYST', FirstNameTH: 'ธนพล', LastNameTH: 'เจริญกิจ', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสืบสวน' },
-            '1234567890004': { UserId: 4, RoleId: 103, RoleCode: 'MNG_BK', FirstNameTH: 'ประเสริฐ', LastNameTH: 'ศรีสุข', Rank: 'พ.ต.อ.', RoleName: 'ผู้บังคับบัญชา' },
-            '1234567890005': { UserId: 5, RoleId: 104, RoleCode: 'EXECUTIVE', FirstNameTH: 'สุรศักดิ์', LastNameTH: 'ชัยวัฒน์', Rank: 'พล.ต.ท.', RoleName: 'ผู้บริหาร' },
-            '1234567890006': { UserId: 6, RoleId: 105, RoleCode: 'ADMIN_ACSC', FirstNameTH: 'อรุณ', LastNameTH: 'แสงทอง', Rank: 'พ.ต.ท.', RoleName: 'แอดมิน ACSC' },
-            '1234567890007': { UserId: 7, RoleId: 106, RoleCode: 'ROOTTRAIN', FirstNameTH: 'มนัส', LastNameTH: 'พงษ์เจริญ', Rank: 'ร.ต.ท.', RoleName: 'ดูข้อมูลได้อย่างเดียว' },
-            '1234567890008': { UserId: 8, RoleId: 107, RoleCode: 'INVEST_EXEC', FirstNameTH: 'กิตติ', LastNameTH: 'วรรณภา', Rank: 'พ.ต.อ.', RoleName: 'สืบบริหาร' },
-            '1234567890009': { UserId: 9, RoleId: 108, RoleCode: 'ADMIN_BCH', FirstNameTH: 'นิรันดร์', LastNameTH: 'อมรเทพ', Rank: 'พ.ต.ท.', RoleName: 'Admin บช.' },
-            '1234567890010': { UserId: 10, RoleId: 109, RoleCode: 'MNG_CCIB', FirstNameTH: 'วีระ', LastNameTH: 'พัฒนกุล', Rank: 'พ.ต.อ.', RoleName: 'Admin บช.สอท.' },
-            '1234567890011': { UserId: 11, RoleId: 110, RoleCode: 'OFFICER_ACSC', FirstNameTH: 'ปิยะ', LastNameTH: 'สมบูรณ์', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสอบสวน ACSC' },
-            '1234567890012': { UserId: 12, RoleId: 111, RoleCode: 'MNG_REGION', FirstNameTH: 'อำนาจ', LastNameTH: 'รุ่งเรือง', Rank: 'พ.ต.อ.', RoleName: 'ADMIN บก./ภ.จว.' },
-            '1234567890013': { UserId: 13, RoleId: 112, RoleCode: 'OFFICER1441', FirstNameTH: 'พิชัย', LastNameTH: 'ทองดี', Rank: 'ด.ต.', RoleName: 'เจ้าหน้าที่1441' },
-            '1234567890014': { UserId: 14, RoleId: 113, RoleCode: 'MNG_KK', FirstNameTH: 'สุทธิ', LastNameTH: 'กล้าหาญ', Rank: 'พ.ต.ท.', RoleName: 'Admin สน./สภ.' },
-            '1234567890015': { UserId: 15, RoleId: 114, RoleCode: 'CYBER_TRAINING', FirstNameTH: 'ณัฐพล', LastNameTH: 'ไซเบอร์', Rank: 'ร.ต.อ.', RoleName: 'ครูไซเบอร์' },
+            '1234567890001': { UserId: 1, RoleId: 76, RoleCode: 'ROOT', FirstNameTH: 'สมชาย', LastNameTH: 'ดีเด่น', Rank: 'พ.ต.ท.', RoleName: 'แอดมิน ตร.', password: '90001' },
+            '1234567890002': { UserId: 2, RoleId: 101, RoleCode: 'OFFICER', FirstNameTH: 'วิชัย', LastNameTH: 'สุขสวัสดิ์', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสอบสวน', password: '90002' },
+            '1234567890003': { UserId: 3, RoleId: 102, RoleCode: 'OFFICER_ANALYST', FirstNameTH: 'ธนพล', LastNameTH: 'เจริญกิจ', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสืบสวน', password: '90003' },
+            '1234567890004': { UserId: 4, RoleId: 103, RoleCode: 'MNG_BK', FirstNameTH: 'ประเสริฐ', LastNameTH: 'ศรีสุข', Rank: 'พ.ต.อ.', RoleName: 'ผู้บังคับบัญชา', password: '90004' },
+            '1234567890005': { UserId: 5, RoleId: 104, RoleCode: 'EXECUTIVE', FirstNameTH: 'สุรศักดิ์', LastNameTH: 'ชัยวัฒน์', Rank: 'พล.ต.ท.', RoleName: 'ผู้บริหาร', password: '90005' },
+            '1234567890006': { UserId: 6, RoleId: 105, RoleCode: 'ADMIN_ACSC', FirstNameTH: 'อรุณ', LastNameTH: 'แสงทอง', Rank: 'พ.ต.ท.', RoleName: 'แอดมิน ACSC', password: '90006' },
+            '1234567890007': { UserId: 7, RoleId: 106, RoleCode: 'ROOTTRAIN', FirstNameTH: 'มนัส', LastNameTH: 'พงษ์เจริญ', Rank: 'ร.ต.ท.', RoleName: 'ดูข้อมูลได้อย่างเดียว', password: '90007' },
+            '1234567890008': { UserId: 8, RoleId: 107, RoleCode: 'INVEST_EXEC', FirstNameTH: 'กิตติ', LastNameTH: 'วรรณภา', Rank: 'พ.ต.อ.', RoleName: 'สืบบริหาร', password: '90008' },
+            '1234567890009': { UserId: 9, RoleId: 108, RoleCode: 'ADMIN_BCH', FirstNameTH: 'นิรันดร์', LastNameTH: 'อมรเทพ', Rank: 'พ.ต.ท.', RoleName: 'Admin บช.', password: '90009' },
+            '1234567890010': { UserId: 10, RoleId: 109, RoleCode: 'MNG_CCIB', FirstNameTH: 'วีระ', LastNameTH: 'พัฒนกุล', Rank: 'พ.ต.อ.', RoleName: 'Admin บช.สอท.', password: '90010' },
+            '1234567890011': { UserId: 11, RoleId: 110, RoleCode: 'OFFICER_ACSC', FirstNameTH: 'ปิยะ', LastNameTH: 'สมบูรณ์', Rank: 'ร.ต.อ.', RoleName: 'พนักงานสอบสวน ACSC', password: '90011' },
+            '1234567890012': { UserId: 12, RoleId: 111, RoleCode: 'MNG_REGION', FirstNameTH: 'อำนาจ', LastNameTH: 'รุ่งเรือง', Rank: 'พ.ต.อ.', RoleName: 'ADMIN บก./ภ.จว.', password: '90012' },
+            '1234567890013': { UserId: 13, RoleId: 112, RoleCode: 'OFFICER1441', FirstNameTH: 'พิชัย', LastNameTH: 'ทองดี', Rank: 'ด.ต.', RoleName: 'เจ้าหน้าที่1441', password: '90013' },
+            '1234567890014': { UserId: 14, RoleId: 113, RoleCode: 'MNG_KK', FirstNameTH: 'สุทธิ', LastNameTH: 'กล้าหาญ', Rank: 'พ.ต.ท.', RoleName: 'Admin สน./สภ.', password: '90014' },
+            '1234567890015': { UserId: 15, RoleId: 114, RoleCode: 'CYBER_TRAINING', FirstNameTH: 'ณัฐพล', LastNameTH: 'ไซเบอร์', Rank: 'ร.ต.อ.', RoleName: 'ครูไซเบอร์', password: '90015' },
         };
 
         // Track current logged-in user (by last auth request)
@@ -431,20 +431,21 @@ const server = http.createServer((req, res) => {
                 res.end(success({ Nonce: 'mock-nonce-12345' }));
             } else if (url.includes('get-otp')) {
                 res.end(JSON.stringify({ IsSuccess: true, Message: 'OTP sent (mock)' }));
-            } else {
-                // Detect username from body
+            } else if (url.includes('user/auth')) {
+                // Login จริง — ต้องอยู่ใน DEMO_USERS และ password ตรงเป๊ะ (ไม่มี fallback-to-default อีกต่อไป)
                 const params = body ? JSON.parse(body) : {};
-                const username = params.Username || params.username || params.personalId || '';
-                const password = params.Password || params.password || '';
+                const username = String(params.UserName || params.Username || params.username || params.personalId || '').trim();
+                const password = String(params.Password || params.password || '');
                 const matchedUser = DEMO_USERS[username];
 
-                // Check password if user has one set
-                if (matchedUser && matchedUser.password && matchedUser.password !== password) {
-                    res.end(JSON.stringify({ IsSuccess: false, Value: null, Message: 'รหัสผ่านไม่ถูกต้อง' }));
+                if (!matchedUser || matchedUser.password !== password) {
+                    console.log(`  [AUTH REJECTED] username="${username}" — ไม่อยู่ใน allowlist หรือรหัสผ่านไม่ตรง`);
+                    res.writeHead(401);
+                    res.end(JSON.stringify({ IsSuccess: false, Value: null, Message: 'Username หรือ Password ไม่ถูกต้อง' }));
                     return;
                 }
 
-                currentUser = matchedUser || DEMO_USERS['1234567890001'];
+                currentUser = matchedUser;
                 console.log(`[Auth] Login: ${username} → ${currentUser.Rank}${currentUser.FirstNameTH} ${currentUser.LastNameTH} (${currentUser.RoleName})`);
 
                 const header = Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');
@@ -454,6 +455,21 @@ const server = http.createServer((req, res) => {
                     LastAccessDateTime: new Date().toISOString(),
                     FullName: `${currentUser.Rank}${currentUser.FirstNameTH} ${currentUser.LastNameTH}`,
                     FirstNameTH: currentUser.FirstNameTH, LastNameTH: currentUser.LastNameTH,
+                    exp: Math.floor(Date.now() / 1000) + 86400,
+                    iat: Math.floor(Date.now() / 1000)
+                })).toString('base64url');
+                const token = header + '.' + payload + '.mock_signature_valid';
+                res.end(success({ Token: token, RefreshToken: 'mock-refresh-token-valid' }));
+            } else {
+                // user/renew, user/refresh — ต่ออายุ token ของ session ที่ login ผ่าน allowlist ไปแล้ว
+                const sessionUser = currentUser || DEMO_USERS['3211234567890'];
+                const header = Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');
+                const payload = Buffer.from(JSON.stringify({
+                    UserId: sessionUser.UserId, UserType: 2, PersonalId: sessionUser.UserId,
+                    OrganizeId: 1, OrganizeLevel: 1, OrganizeRootId: 1,
+                    LastAccessDateTime: new Date().toISOString(),
+                    FullName: `${sessionUser.Rank}${sessionUser.FirstNameTH} ${sessionUser.LastNameTH}`,
+                    FirstNameTH: sessionUser.FirstNameTH, LastNameTH: sessionUser.LastNameTH,
                     exp: Math.floor(Date.now() / 1000) + 86400,
                     iat: Math.floor(Date.now() / 1000)
                 })).toString('base64url');
@@ -1142,5 +1158,5 @@ server.listen(PORT, () => {
     console.log(`\n✅ Mock API Server running at http://localhost:${PORT}/api`);
     console.log(`   ${MOCK_CASE_DATA.length} cases loaded from Excel mock data`);
     console.log(`   Angular app environment.ts apiUrl should be: http://localhost:${PORT}/api`);
-    console.log(`   Login: any username (13 digits) + any password\n`);
+    console.log(`   Login: เฉพาะ username ที่อยู่ใน DEMO_USERS + password ตรงเป๊ะ (ดู docs/USER_MANUAL.md 2.2)\n`);
 });
