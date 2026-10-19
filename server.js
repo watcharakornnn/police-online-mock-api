@@ -432,6 +432,21 @@ const server = http.createServer((req, res) => {
         // Track current logged-in user (by last auth request)
         let currentUser = DEMO_USERS['1234567890001']; // default: admin
 
+        // Resolve the demo user from the request's JWT (UserId claim) instead of the shared
+        // global currentUser — avoids a race when multiple sessions hit the server concurrently.
+        function resolveUserFromAuthHeader(authHeader) {
+            try {
+                const token = String(authHeader || '').replace(/^Bearer\s+/i, '');
+                const parts = token.split('.');
+                if (parts.length < 2) return null;
+                const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+                if (claims.exp && claims.exp <= Math.floor(Date.now() / 1000)) return null;
+                return Object.values(DEMO_USERS).find(u => u.UserId === claims.UserId) || null;
+            } catch (_) {
+                return null;
+            }
+        }
+
         // ========== Auth / Login ==========
         if (url.includes('user/auth') || url.includes('user/challenge') || url.includes('user/renew') || url.includes('user/refresh') || url.includes('user/get-otp')) {
             if (url.includes('challenge')) {
@@ -519,13 +534,19 @@ const server = http.createServer((req, res) => {
         ];
 
         if (url.includes('/role') && !url.includes('register')) {
-            // Admin ตร. (ROOT) สามารถเลือก role อื่นได้ทั้งหมด
-            if (currentUser.RoleCode === 'ROOT') {
-                const rolesWithDefault = MOCK_ROLES.map(r => ({ ...r, IsDefault: r.RoleId === currentUser.RoleId }));
-                res.end(success(rolesWithDefault));
+            // แก้ไข: resolve ผู้ใช้จาก JWT ของ request แทน global currentUser (กัน race เมื่อมีหลาย session พร้อมกันบน Render)
+            const requestUser = resolveUserFromAuthHeader(req.headers.authorization) || currentUser;
+
+            // แอดมิน ตร. (ROOT) เลือกใช้งานได้ "ทุกสิทธิ์" — คืน role ทั้งหมด โดยตั้ง ROOT เป็น default (อยู่ลำดับแรก)
+            if (requestUser && requestUser.RoleCode === 'ROOT') {
+                const ordered = [
+                    ...MOCK_ROLES.filter(r => r.RoleId === requestUser.RoleId),
+                    ...MOCK_ROLES.filter(r => r.RoleId !== requestUser.RoleId),
+                ].map(r => ({ ...r, IsDefault: r.RoleId === requestUser.RoleId }));
+                res.end(success(ordered));
             } else {
-                // Return only the role that matches the current user
-                const userRole = MOCK_ROLES.find(r => r.RoleId === currentUser.RoleId);
+                // ผู้ใช้อื่น — คืนเฉพาะ role ของตัวเอง 1 role
+                const userRole = MOCK_ROLES.find(r => r.RoleId === (requestUser ? requestUser.RoleId : -1));
                 res.end(success(userRole ? [{ ...userRole, IsDefault: true }] : [MOCK_ROLES[0]]));
             }
             return;
